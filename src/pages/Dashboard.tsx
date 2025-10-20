@@ -16,8 +16,25 @@ const Dashboard = () => {
       return;
     }
 
-    if (!loading && profile && profile.role === 'admin') {
-      navigate('/admin');
+    if (!loading && profile) {
+      // Route to role-specific dashboard
+      switch (profile.role) {
+        case 'admin':
+          navigate('/admin');
+          break;
+        case 'resident':
+          navigate('/resident');
+          break;
+        case 'store':
+          navigate('/store');
+          break;
+        case 'service_provider':
+          navigate('/service-provider');
+          break;
+        case 'rider':
+          navigate('/rider');
+          break;
+      }
     }
   }, [user, profile, loading, navigate]);
 
