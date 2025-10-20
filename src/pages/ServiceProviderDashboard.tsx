@@ -35,9 +35,10 @@ const ServiceProviderDashboard = () => {
 
   const fetchStats = async () => {
     try {
+      const category = profile?.service_category as any;
       const [available, active, completed] = await Promise.all([
-        supabase.from('job_requests').select('*', { count: 'exact', head: true }).is('provider_id', null).eq('status', 'pending').eq('service_category', profile?.service_category || ''),
-        supabase.from('job_requests').select('*', { count: 'exact', head: true }).eq('provider_id', user?.id).eq('status', 'in_progress'),
+        supabase.from('job_requests').select('*', { count: 'exact', head: true }).is('provider_id', null).eq('status', 'pending').eq('service_category', category),
+        supabase.from('job_requests').select('*', { count: 'exact', head: true }).eq('provider_id', user?.id).eq('status', 'in_progress' as any),
         supabase.from('job_requests').select('*', { count: 'exact', head: true }).eq('provider_id', user?.id).eq('status', 'completed').gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
       ]);
 

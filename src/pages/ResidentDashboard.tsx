@@ -38,7 +38,7 @@ const ResidentDashboard = () => {
   const fetchStats = async () => {
     try {
       const [jobs, permits, announcements] = await Promise.all([
-        supabase.from('job_requests').select('*', { count: 'exact', head: true }).eq('resident_id', user?.id).in('status', ['pending', 'in_progress']),
+        supabase.from('job_requests').select('*', { count: 'exact', head: true }).eq('resident_id', user?.id).in('status', ['pending', 'in_progress'] as any),
         supabase.from('gate_permits').select('*', { count: 'exact', head: true }).eq('requester_id', user?.id).eq('status', 'pending'),
         supabase.from('announcements').select('*', { count: 'exact', head: true }),
       ]);

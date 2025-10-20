@@ -37,7 +37,7 @@ const RiderDashboard = () => {
     try {
       const [available, active, completed] = await Promise.all([
         supabase.from('rider_requests').select('*', { count: 'exact', head: true }).is('rider_id', null).eq('status', 'pending'),
-        supabase.from('rider_requests').select('*', { count: 'exact', head: true }).eq('rider_id', user?.id).eq('status', 'in_progress'),
+        supabase.from('rider_requests').select('*', { count: 'exact', head: true }).eq('rider_id', user?.id).eq('status', 'in_progress' as any),
         supabase.from('rider_requests').select('*', { count: 'exact', head: true }).eq('rider_id', user?.id).eq('status', 'completed').gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
       ]);
 

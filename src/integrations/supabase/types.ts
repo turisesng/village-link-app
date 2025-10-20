@@ -343,7 +343,12 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      job_status: "pending" | "accepted" | "rejected" | "completed"
+      job_status:
+        | "pending"
+        | "accepted"
+        | "rejected"
+        | "completed"
+        | "in_progress"
       request_status: "pending" | "approved" | "rejected"
       service_category:
         | "plumber"
@@ -483,7 +488,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      job_status: ["pending", "accepted", "rejected", "completed"],
+      job_status: [
+        "pending",
+        "accepted",
+        "rejected",
+        "completed",
+        "in_progress",
+      ],
       request_status: ["pending", "approved", "rejected"],
       service_category: [
         "plumber",

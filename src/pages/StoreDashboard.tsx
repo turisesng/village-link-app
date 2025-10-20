@@ -35,7 +35,7 @@ const StoreDashboard = () => {
   const fetchStats = async () => {
     try {
       const [active, completed] = await Promise.all([
-        supabase.from('rider_requests').select('*', { count: 'exact', head: true }).eq('requester_id', user?.id).in('status', ['pending', 'in_progress']),
+        supabase.from('rider_requests').select('*', { count: 'exact', head: true }).eq('requester_id', user?.id).in('status', ['pending', 'in_progress'] as any),
         supabase.from('rider_requests').select('*', { count: 'exact', head: true }).eq('requester_id', user?.id).eq('status', 'completed').gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
       ]);
 
