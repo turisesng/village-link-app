@@ -13,8 +13,13 @@ const Dashboard = () => {
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth?mode=signin');
+      return;
     }
-  }, [user, loading, navigate]);
+
+    if (!loading && profile && profile.role === 'admin') {
+      navigate('/admin');
+    }
+  }, [user, profile, loading, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
