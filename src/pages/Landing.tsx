@@ -31,12 +31,6 @@ const Landing = () => {
       description: "Provide pickup and delivery services",
       role: "rider",
     },
-    {
-      icon: Shield,
-      title: "Estate Admin",
-      description: "Manage estate operations and approvals",
-      role: "admin",
-    },
   ];
 
   return (

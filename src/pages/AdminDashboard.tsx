@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Users, CheckCircle, XCircle, MessageSquare } from "lucide-react";
+import { LogOut, Users, CheckCircle, MessageSquare, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { OnboardingRequestsTable } from "@/components/admin/OnboardingRequestsTable";
 import { GatePermitsTable } from "@/components/admin/GatePermitsTable";
 import { BroadcastForm } from "@/components/admin/BroadcastForm";
+import { RoleManagement } from "@/components/admin/RoleManagement";
 
 const AdminDashboard = () => {
   const { user, profile, loading, signOut } = useAuth();
@@ -21,22 +22,35 @@ const AdminDashboard = () => {
   });
 
   useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!loading && user) {
+        const { data: roles, error } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'admin')
+          .single();
+
+        if (error || !roles) {
+          navigate('/');
+          return;
+        }
+      }
+    };
+
     if (!loading && !user) {
-      navigate('/auth?mode=signin');
+      navigate('/admin/login');
       return;
     }
 
-    if (!loading && profile && profile.role !== 'admin') {
-      navigate('/dashboard');
-      return;
-    }
-  }, [user, profile, loading, navigate]);
+    checkAdminRole();
+  }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (profile?.role === 'admin') {
+    if (user) {
       fetchStats();
     }
-  }, [profile]);
+  }, [user]);
 
   const fetchStats = async () => {
     try {
@@ -70,7 +84,7 @@ const AdminDashboard = () => {
     );
   }
 
-  if (!profile || profile.role !== 'admin') {
+  if (!user) {
     return null;
   }
 
@@ -89,7 +103,7 @@ const AdminDashboard = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Welcome, {profile.full_name}
+            Welcome, {profile?.full_name || 'Admin'}
           </h2>
           <p className="text-muted-foreground">
             Manage estate operations and user requests
@@ -129,7 +143,7 @@ const AdminDashboard = () => {
         </div>
 
         <Tabs defaultValue="onboarding" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="onboarding">
               Onboarding Requests
               {stats.pendingOnboarding > 0 && (
@@ -150,6 +164,10 @@ const AdminDashboard = () => {
               <MessageSquare className="mr-2 h-4 w-4" />
               Broadcast
             </TabsTrigger>
+            <TabsTrigger value="roles">
+              <Shield className="mr-2 h-4 w-4" />
+              Manage Roles
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="onboarding" className="space-y-4">
@@ -162,6 +180,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="broadcast" className="space-y-4">
             <BroadcastForm />
+          </TabsContent>
+
+          <TabsContent value="roles" className="space-y-4">
+            <RoleManagement />
           </TabsContent>
         </Tabs>
       </main>
