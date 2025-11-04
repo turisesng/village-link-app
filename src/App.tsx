@@ -1,15 +1,16 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "./components/ui/toaster"; // Switched to relative path
+import { Toaster as Sonner } from "./components/ui/sonner"; // Switched to relative path
+import { TooltipProvider } from "./components/ui/tooltip"; // Switched to relative path
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider } from "./hooks/useAuth"; // Switched to relative path
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import AdminAuth from "./pages/AdminAuth";
 import Onboarding from "./pages/Onboarding";
+import AwaitingApproval from "./pages/AwaitingApproval";
 import Dashboard from "./pages/Dashboard";
-import AdminDashboard from "./pages/AdminDashboard"; // Imported component handles logic
+import AdminDashboard from "./pages/AdminDashboard";
 import ResidentDashboard from "./pages/ResidentDashboard";
 import StoreDashboard from "./pages/StoreDashboard";
 import ServiceProviderDashboard from "./pages/ServiceProviderDashboard";
@@ -30,23 +31,23 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin/login" element={<AdminAuth />} />
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            {/* Existing /admin route is likely for the main admin area.
-              The new /admin/approvals route is added below.
-            */}
-            <Route path="/admin" element={<AdminDashboard />} /> 
             
-            {/* NEW ROUTE: Maps /admin/approvals to the AdminDashboard component.
-              The AdminDashboard component handles checking the user's role 
-              and displaying the approval lists.
-            */}
+            {/* Destination after successful onboarding submission, pending admin review */}
+            <Route path="/awaiting-approval" element={<AwaitingApproval />} />
+
+            <Route path="/dashboard" element={<Dashboard />} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminDashboard />} /> 
             <Route path="/admin/approvals" element={<AdminDashboard />} />
             
+            {/* Role-Specific Dashboard Routes */}
             <Route path="/resident" element={<ResidentDashboard />} />
             <Route path="/store" element={<StoreDashboard />} />
             <Route path="/service-provider" element={<ServiceProviderDashboard />} />
             <Route path="/rider" element={<RiderDashboard />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+            {/* Catch-all route for 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

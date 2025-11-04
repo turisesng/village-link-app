@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { authHelpers, UserRole } from "@/lib/supabase";
+// FIX: Changed absolute import path (@/lib/supabase) to a relative path (../../lib/supabase)
+import { authHelpers, UserRole, SignUpProfileParams } from "../../lib/supabase"; 
 import { ArrowLeft, Upload } from "lucide-react";
 
 // === CONSTANTS ===
@@ -62,6 +63,32 @@ const proofOfAddressTypes = [
   { value: 'bank_statement', label: 'Bank Statement' },
 ];
 
+// Re-usable component for styled file input
+interface FileUploadProps {
+    id: string;
+    label: string;
+    file: File | null;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    required: boolean;
+    disabled: boolean;
+    className?: string;
+}
+
+const StyledFileInput: React.FC<FileUploadProps> = ({ id, label, file, onChange, required, disabled, className = '' }) => (
+    <div className={`grid w-full items-center gap-1.5 ${className}`}>
+        <Label htmlFor={id}>{label}{required && ' *'}</Label>
+        <Label className={`flex w-full items-center justify-center border border-input rounded-md px-3 cursor-pointer h-10 transition ${disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'hover:bg-gray-50'}`}>
+            <Upload className="w-4 h-4 mr-2" />
+            {file ? file.name : 'Choose File'}
+            <Input 
+                id={id} name={id} type="file" className="sr-only" 
+                onChange={onChange} required={required} disabled={disabled}
+            />
+        </Label>
+    </div>
+);
+
+
 const Onboarding = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -75,12 +102,15 @@ const Onboarding = () => {
     full_name: '',
     phone_number: '',
     
-    // Universal Document and Address fields (required for all roles)
+    // Universal Document and Address fields
     address: '',
     proof_of_address_type: '',
     identification_type: '',
     proof_of_address: null as File | null,
     identification_document: null as File | null,
+
+    // Store Fields
+    business_registration_document: null as File | null,
 
     // Service Provider Fields
     service_category: '', 
@@ -97,10 +127,13 @@ const Onboarding = () => {
   });
 
   // Helper flags for conditional rendering and validation
-  // Document and address fields are now required for ALL four roles
   const requiresAddressAndDocuments = ['resident', 'store', 'service_provider', 'rider'].includes(roleParam);
+  const requiresStoreDetails = roleParam === 'store';
   const requiresServiceCategory = roleParam === 'service_provider';
   const requiresRiderDetails = roleParam === 'rider';
+  
+  // Logic to determine if 'is_outside_estate' checkbox should be shown
+  const showOutsideEstateCheckbox = roleParam !== 'resident';
 
   const getCardTitle = () => {
     switch (roleParam) {
@@ -112,7 +145,7 @@ const Onboarding = () => {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | React.ChangeEvent<HTMLTextAreaElement>>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
@@ -139,14 +172,19 @@ const Onboarding = () => {
 
     let finalServiceCategory = formData.service_category;
 
-    // --- Service Provider Validation ---
+    // --- Role-Specific Validation ---
+    if (requiresStoreDetails && !formData.business_registration_document) {
+        toast.error("Certificate of Incorporation or Business Registration is required.");
+        setLoading(false);
+        return;
+    }
+
     if (requiresServiceCategory) {
         if (!finalServiceCategory) {
             toast.error("Please select a service category.");
             setLoading(false);
             return;
         }
-        // Handle "Other" category input
         if (finalServiceCategory === 'other') {
             if (!formData.manual_service_category) {
                 toast.error("Please specify your service category.");
@@ -155,7 +193,6 @@ const Onboarding = () => {
             }
             finalServiceCategory = formData.manual_service_category;
         }
-        // Validate Service Provider specific file upload
         if (!formData.skill_certification_document) {
             toast.error("Skill Certification document is required.");
             setLoading(false);
@@ -163,14 +200,12 @@ const Onboarding = () => {
         }
     }
     
-    // --- Rider Validation ---
     if (requiresRiderDetails) {
         if (!formData.vehicle_type || !formData.license_plate_number) {
             toast.error("Please fill in all vehicle details.");
             setLoading(false);
             return;
         }
-        // Validate Rider specific file uploads
         if (!formData.vehicle_license_document || !formData.driver_license_document) {
             toast.error("Both Vehicle License and Driver's License documents are required.");
             setLoading(false);
@@ -178,10 +213,18 @@ const Onboarding = () => {
         }
     }
 
-    // --- Universal Verification Validation (required for all four roles) ---
-    if (requiresAddressAndDocuments) {
-        if (!formData.address || !formData.proof_of_address || !formData.identification_document) {
-            toast.error(`Please provide the required address and identification documents.`);
+    // --- Universal Verification Validation ---
+    const isVerificationRequired = requiresAddressAndDocuments && !formData.is_outside_estate;
+
+    if (requiresAddressAndDocuments && !formData.address) {
+         toast.error(`Please provide the required address.`);
+        setLoading(false);
+        return;
+    }
+
+    if (isVerificationRequired) {
+        if (!formData.proof_of_address || !formData.identification_document || !formData.proof_of_address_type || !formData.identification_type) {
+            toast.error(`Please provide the required address verification documents and select document types.`);
             setLoading(false);
             return;
         }
@@ -189,28 +232,36 @@ const Onboarding = () => {
     
     // --- Submission ---
     try {
-      // ⚠️ CRITICAL: The authHelpers.signUp function in src/lib/supabase.ts MUST be updated 
-      // to handle and upload the new files (skill_certification_document, vehicle_license_document, driver_license_document) 
-      // and pass all related text fields (vehicle_type, license_plate_number) to the Supabase RPC function.
-      await authHelpers.signUp(formData.email, formData.password, {
+      
+      const profileData: SignUpProfileParams = {
           full_name: formData.full_name,
           phone_number: formData.phone_number,
-          role: roleParam,
+          role: roleParam, // Use roleParam (which is of type UserRole)
           
           address: formData.address,
-          proof_of_address_type: formData.proof_of_address_type,
-          proof_of_address: formData.proof_of_address,
-          identification_type: formData.identification_type,
-          identification_document: formData.identification_document,
+          // Only pass verification docs if they are actually required (i.e., not outside estate)
+          proof_of_address_type: isVerificationRequired ? formData.proof_of_address_type : undefined,
+          proof_of_address: isVerificationRequired ? formData.proof_of_address : null,
+          identification_type: isVerificationRequired ? formData.identification_type : undefined,
+          identification_document: isVerificationRequired ? formData.identification_document : null,
+
+          // Store
+          business_registration_document: formData.business_registration_document,
           
+          // Service Provider
           service_category: finalServiceCategory, 
           skill_certification_document: formData.skill_certification_document,
 
+          // Rider
           vehicle_type: formData.vehicle_type,
           license_plate_number: formData.license_plate_number,
           vehicle_license_document: formData.vehicle_license_document,
           driver_license_document: formData.driver_license_document,
-      });
+
+          is_outside_estate: formData.is_outside_estate,
+      };
+
+      await authHelpers.signUp(formData.email, formData.password, profileData);
 
       // Clear form and display success
       setFormData({
@@ -219,9 +270,12 @@ const Onboarding = () => {
         proof_of_address: null, identification_document: null, service_category: '',
         manual_service_category: '', skill_certification_document: null,
         vehicle_type: '', license_plate_number: '', vehicle_license_document: null, driver_license_document: null,
+        business_registration_document: null,
         is_outside_estate: false,
       });
       toast.success("Registration submitted! Awaiting admin approval.");
+      
+      // Navigate to the dedicated waiting page
       navigate('/awaiting-approval');
 
     } catch (err) {
@@ -273,7 +327,7 @@ const Onboarding = () => {
                 <div className="space-y-4 pt-2 border-t border-gray-200">
                   <h3 className="text-lg font-semibold pt-2">Service Details</h3>
                   <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="service_category">Service Category</Label>
+                    <Label htmlFor="service_category">Service Category *</Label>
                     <Select onValueChange={(value) => handleSelectChange(value, 'service_category')} value={formData.service_category} required>
                       <SelectTrigger><SelectValue placeholder="Select a service category" /></SelectTrigger>
                       <SelectContent>
@@ -300,7 +354,7 @@ const Onboarding = () => {
                   
                   {/* Vehicle Type Dropdown */}
                   <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="vehicle_type">Vehicle Type</Label>
+                    <Label htmlFor="vehicle_type">Vehicle Type *</Label>
                     <Select 
                       onValueChange={(value) => handleSelectChange(value, 'vehicle_type')}
                       value={formData.vehicle_type}
@@ -325,34 +379,24 @@ const Onboarding = () => {
                   />
 
                   {/* Driver's License Upload */}
-                  <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="driver_license_document">Driver's License Upload</Label>
-                    <Label className="flex w-full items-center justify-center border border-input rounded-md px-3 cursor-pointer h-10 hover:bg-gray-50 transition">
-                        <Upload className="w-4 h-4 mr-2" />
-                        {formData.driver_license_document ? formData.driver_license_document.name : 'Upload Driver’s License'}
-                        <Input 
-                            id="driver_license_document" name="driver_license_document"
-                            type="file" className="sr-only" 
-                            onChange={(e) => handleFileChange(e, 'driver_license_document')}
-                            required
-                        />
-                    </Label>
-                  </div>
+                  <StyledFileInput
+                    id="driver_license_document"
+                    label="Driver's License Upload"
+                    file={formData.driver_license_document}
+                    onChange={(e) => handleFileChange(e, 'driver_license_document')}
+                    required={true}
+                    disabled={loading}
+                  />
 
                   {/* Vehicle License Upload */}
-                  <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="vehicle_license_document">Vehicle License / Proof of Ownership</Label>
-                    <Label className="flex w-full items-center justify-center border border-input rounded-md px-3 cursor-pointer h-10 hover:bg-gray-50 transition">
-                        <Upload className="w-4 h-4 mr-2" />
-                        {formData.vehicle_license_document ? formData.vehicle_license_document.name : 'Upload Vehicle License'}
-                        <Input 
-                            id="vehicle_license_document" name="vehicle_license_document"
-                            type="file" className="sr-only" 
-                            onChange={(e) => handleFileChange(e, 'vehicle_license_document')}
-                            required
-                        />
-                    </Label>
-                  </div>
+                  <StyledFileInput
+                    id="vehicle_license_document"
+                    label="Vehicle License / Proof of Ownership"
+                    file={formData.vehicle_license_document}
+                    onChange={(e) => handleFileChange(e, 'vehicle_license_document')}
+                    required={true}
+                    disabled={loading}
+                  />
                 </div>
               )}
 
@@ -370,37 +414,48 @@ const Onboarding = () => {
                     placeholder={roleParam === 'store' ? 'Store Address' : 'Residence/Business Address'}
                     value={formData.address} onChange={handleChange} required
                   />
+
+                  {/* Store Registration Document Upload (NEW for Store) */}
+                  {requiresStoreDetails && (
+                    <StyledFileInput
+                        id="business_registration_document"
+                        label="Business Registration / Incorporation Certificate"
+                        file={formData.business_registration_document}
+                        onChange={(e) => handleFileChange(e, 'business_registration_document')}
+                        required={true}
+                        disabled={loading}
+                    />
+                  )}
                   
                   {/* Skill Certification Upload (Only for Service Provider) */}
                   {roleParam === 'service_provider' && (
-                    <div className="grid w-full items-center gap-1.5">
-                      <Label htmlFor="skill_certification_document">Skill Certification Document</Label>
-                      <Label className="flex w-full items-center justify-center border border-input rounded-md px-3 cursor-pointer h-10 hover:bg-gray-50 transition">
-                          <Upload className="w-4 h-4 mr-2" />
-                          {formData.skill_certification_document ? formData.skill_certification_document.name : 'Upload Certification (e.g., Trade License)'}
-                          <Input id="skill_certification_document" name="skill_certification_document"
-                              type="file" className="sr-only" 
-                              onChange={(e) => handleFileChange(e, 'skill_certification_document')} required
-                          />
-                      </Label>
-                    </div>
+                    <StyledFileInput
+                        id="skill_certification_document"
+                        label="Skill Certification Document"
+                        file={formData.skill_certification_document}
+                        onChange={(e) => handleFileChange(e, 'skill_certification_document')}
+                        required={true}
+                        disabled={loading}
+                    />
                   )}
 
                   {/* Proof of Address Upload */}
                   <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="proof_of_address">Proof of Address</Label>
+                    <Label htmlFor="proof_of_address">Proof of Address {(!formData.is_outside_estate) && '*'}</Label>
                     <div className="flex space-x-2">
-                      <Select required={!formData.is_outside_estate} onValueChange={(value) => handleSelectChange(value, 'proof_of_address_type')} value={formData.proof_of_address_type}>
+                      <Select required={!formData.is_outside_estate} onValueChange={(value) => handleSelectChange(value, 'proof_of_address_type')} value={formData.proof_of_address_type} disabled={formData.is_outside_estate || loading}>
                         <SelectTrigger className="w-1/2"><SelectValue placeholder="Document Type" /></SelectTrigger>
                         <SelectContent>
                           {proofOfAddressTypes.map(type => (<SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>))}
                         </SelectContent>
                       </Select>
-                      <Label className="flex w-1/2 items-center justify-center border border-input rounded-md px-3 cursor-pointer hover:bg-gray-50 transition">
+                      <Label className={`flex w-1/2 items-center justify-center border border-input rounded-md px-3 cursor-pointer hover:bg-gray-50 transition ${formData.is_outside_estate || loading ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}>
                         <Upload className="w-4 h-4 mr-2" />
                         {formData.proof_of_address ? formData.proof_of_address.name : 'Choose File'}
                         <Input id="proof_of_address" name="proof_of_address" type="file" className="sr-only" 
-                          onChange={(e) => handleFileChange(e, 'proof_of_address')} required={!formData.is_outside_estate}
+                          onChange={(e) => handleFileChange(e, 'proof_of_address')} 
+                          required={!formData.is_outside_estate}
+                          disabled={formData.is_outside_estate || loading}
                         />
                       </Label>
                     </div>
@@ -408,19 +463,21 @@ const Onboarding = () => {
 
                   {/* Identification Document Upload */}
                   <div className="grid w-full items-center gap-1.5">
-                    <Label htmlFor="identification_document">Identification Document</Label>
+                    <Label htmlFor="identification_document">Identification Document {(!formData.is_outside_estate) && '*'}</Label>
                     <div className="flex space-x-2">
-                      <Select required={!formData.is_outside_estate} onValueChange={(value) => handleSelectChange(value, 'identification_type')} value={formData.identification_type}>
+                      <Select required={!formData.is_outside_estate} onValueChange={(value) => handleSelectChange(value, 'identification_type')} value={formData.identification_type} disabled={formData.is_outside_estate || loading}>
                         <SelectTrigger className="w-1/2"><SelectValue placeholder="Document Type" /></SelectTrigger>
                         <SelectContent>
                           {identificationTypes.map(type => (<SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>))}
                         </SelectContent>
                       </Select>
-                      <Label className="flex w-1/2 items-center justify-center border border-input rounded-md px-3 cursor-pointer hover:bg-gray-50 transition">
+                      <Label className={`flex w-1/2 items-center justify-center border border-input rounded-md px-3 cursor-pointer hover:bg-gray-50 transition ${formData.is_outside_estate || loading ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}>
                         <Upload className="w-4 h-4 mr-2" />
                         {formData.identification_document ? formData.identification_document.name : 'Choose File'}
                         <Input id="identification_document" name="identification_document" type="file" className="sr-only" 
-                          onChange={(e) => handleFileChange(e, 'identification_document')} required={!formData.is_outside_estate}
+                          onChange={(e) => handleFileChange(e, 'identification_document')} 
+                          required={!formData.is_outside_estate}
+                          disabled={formData.is_outside_estate || loading}
                         />
                       </Label>
                     </div>
@@ -428,26 +485,28 @@ const Onboarding = () => {
                 </div>
               )}
 
-              {/* === OUTSIDE ESTATE CHECKBOX === */}
-              <div className="flex items-center space-x-2 pt-2 border-t border-gray-200">
-                <Checkbox
-                  id="outside_estate" checked={formData.is_outside_estate}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_outside_estate: checked as boolean })}
-                />
-                <Label htmlFor="outside_estate" className="text-sm font-normal">
-                  I am located outside the estate
-                </Label>
-              </div>
+              {/* === OUTSIDE ESTATE CHECKBOX (Hidden for Resident) === */}
+              {showOutsideEstateCheckbox && (
+                <div className="flex items-center space-x-2 pt-2 border-t border-gray-200">
+                  <Checkbox
+                    id="outside_estate" checked={formData.is_outside_estate}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_outside_estate: checked as boolean })}
+                  />
+                  <Label htmlFor="outside_estate" className="text-sm font-normal">
+                    I am located outside the estate (Waives verification documents)
+                  </Label>
+                </div>
+              )}
 
-              <Button type="submit" className="w-full" disabled={loading} variant="hero">
+              <Button type="submit" className="w-full" disabled={loading} variant="default">
                 {loading ? 'Submitting...' : 'Submit Request'}
               </Button>
               <p className="text-sm text-center text-muted-foreground">
                 Already registered?{' '}
                 <button
                   type="button"
-                  onClick={() => navigate('/auth?mode=signin')}
-                  className="text-primary font-medium hover:underline"
+                  onClick={() => navigate('/signin')}
+                  className="text-blue-600 font-medium hover:underline"
                 >
                   Sign in
                 </button>
