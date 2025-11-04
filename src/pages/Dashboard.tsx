@@ -13,30 +13,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth?mode=signin');
-      return;
     }
-
-    if (!loading && profile) {
-      // Route to role-specific dashboard
-      switch (profile.role) {
-        case 'admin':
-          navigate('/admin');
-          break;
-        case 'resident':
-          navigate('/resident');
-          break;
-        case 'store':
-          navigate('/store');
-          break;
-        case 'service_provider':
-          navigate('/service-provider');
-          break;
-        case 'rider':
-          navigate('/rider');
-          break;
-      }
-    }
-  }, [user, profile, loading, navigate]);
+  }, [user, loading, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
