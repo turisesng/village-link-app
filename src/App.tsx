@@ -9,7 +9,7 @@ import Auth from "./pages/Auth";
 import AdminAuth from "./pages/AdminAuth";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
-import AdminDashboard from "./pages/AdminDashboard";
+import AdminDashboard from "./pages/AdminDashboard"; // Imported component handles logic
 import ResidentDashboard from "./pages/ResidentDashboard";
 import StoreDashboard from "./pages/StoreDashboard";
 import ServiceProviderDashboard from "./pages/ServiceProviderDashboard";
@@ -31,7 +31,17 @@ const App = () => (
             <Route path="/admin/login" element={<AdminAuth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/admin" element={<AdminDashboard />} />
+            {/* Existing /admin route is likely for the main admin area.
+              The new /admin/approvals route is added below.
+            */}
+            <Route path="/admin" element={<AdminDashboard />} /> 
+            
+            {/* NEW ROUTE: Maps /admin/approvals to the AdminDashboard component.
+              The AdminDashboard component handles checking the user's role 
+              and displaying the approval lists.
+            */}
+            <Route path="/admin/approvals" element={<AdminDashboard />} />
+            
             <Route path="/resident" element={<ResidentDashboard />} />
             <Route path="/store" element={<StoreDashboard />} />
             <Route path="/service-provider" element={<ServiceProviderDashboard />} />
